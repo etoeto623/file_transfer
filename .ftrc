@@ -1,0 +1,7 @@
+{
+	"rsaEncKey": "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCdhBabFPYREyZsN83DcsM8e24c\nufgw82pnQqiba7NurQcogeyyznjfIRTSLH/65PPqs8bz3bk8Paj8g2e9f5QCXM45\nXhJEyTURiubKSh8K6T5kyNsvJkk/biBMz+vDe5RIdzTW536e4Nc/VJw/duZy9p6J\naZykKPw/txpzgOx26QIDAQAB\n-----END PUBLIC KEY-----",
+	"rsaDecKey": "-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQCdhBabFPYREyZsN83DcsM8e24cufgw82pnQqiba7NurQcogeyy\nznjfIRTSLH/65PPqs8bz3bk8Paj8g2e9f5QCXM45XhJEyTURiubKSh8K6T5kyNsv\nJkk/biBMz+vDe5RIdzTW536e4Nc/VJw/duZy9p6JaZykKPw/txpzgOx26QIDAQAB\nAoGAAOsbPxGME6J1lzdA2BixQgCtQ4lDeioN08Gmf0w3+5h4t8ErTjziBy5qwStA\nzVaCrsux0zBsFTQkQ6GBrDIQ+Hg+yihghcsCPUUUfnIwWvXY/ZYb8anDGrdU2RMU\n8wVcuXPfvlR5V49GSiWF5AdCDC+WRj4z758yxxrsmZELZCECQQDRo20UJqVqrqUt\nGVX6IgiviaJq9WoK5X5QiGevOHoavF1zMkulDoSmSlNLByh99ncju8x+et5B2+/9\n1c+EdvqJAkEAwFnHBh272vYCbn9ydY+3GnfgJDRGcKXjmyh23ssI/Ju5A8zmN9q7\nqyIhwTZMtc/KT/YvnYZUZ3VqzkjzhrUBYQJBAImdW0RoHhxK6vkQ8aSSZNs+YVUP\nJv5iKioZcN7QFy+nyTyOnqOKRT+X+Nd+qnENsqXNaO76Hx5ij0c07NWK+OkCQHMw\nkHaCMfCjqLshiZsLkLzCEzG7OH/XaGGPrvgnIN+eJgM3nprOW9rVWt+JNBEhOef+\n527vdfZrI6Ybm/MMzKECQQCbGCMMb/TpQ32Ot9cgZE84n+eCA+nUwA8jW1S9wxkh\nYUCgwVD03wrlLwuy/oZrOouTNyHgQM7YSgWU+hEem3JP\n-----END RSA PRIVATE KEY-----",
+	"serverAddress": "localhost:8888",
+	"warehouse": "/Users/neo/ftwarehouse/",
+	"fileEncryptPwd": "pwd"
+}

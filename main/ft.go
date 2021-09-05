@@ -68,6 +68,11 @@ func main(){
 			serverFileName := os.Args[len(os.Args)-1]
 			cfg.ServerFileName = serverFileName
 		}, fetch)
+	case "genkey":
+		prepareCall(func(cfg *biz.Cfg) {
+		}, func(cfg *biz.Cfg) {
+			util.GenRsaKey(1024)
+		})
 	default:
 		util.NoticeAndExit("illegal mode")
 	}

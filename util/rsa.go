@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"os"
 )
 
 /**
@@ -35,4 +36,37 @@ func RsaDecrypt(data []byte, decryptKey string) ([]byte, error){
 		return nil, err
 	}
 	return rsa.DecryptPKCS1v15(rand.Reader, priv, data)
+}
+
+//RSA公钥私钥产生
+func GenRsaKey(bits int) error {
+	// 生成私钥文件
+	privateKey, err := rsa.GenerateKey(rand.Reader, bits)
+	if err != nil {
+		return err
+	}
+	derStream := x509.MarshalPKCS1PrivateKey(privateKey)
+	block := &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: derStream,
+	}
+	err = pem.Encode(os.Stdout, block)
+	if err != nil {
+		return err
+	}
+	// 生成公钥文件
+	publicKey := &privateKey.PublicKey
+	derPkix, err := x509.MarshalPKIXPublicKey(publicKey)
+	if err != nil {
+		return err
+	}
+	block = &pem.Block{
+		Type:  "PUBLIC KEY",
+		Bytes: derPkix,
+	}
+	err = pem.Encode(os.Stdout, block)
+	if err != nil {
+		return err
+	}
+	return nil
 }

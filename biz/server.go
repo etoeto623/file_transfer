@@ -100,12 +100,7 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg){
 	if nil != err || len(fileNameBytes)!=readed{
 		return
 	}
-	fileName, err := genFileName(string(fileNameBytes), cfg.FileEncryptPwd)
-	if nil != err {
-		return
-	}
-	// 读取密码
-
+	fileName := string(fileNameBytes)
 	// 读取文件流
 	file, err := os.Create(cfg.Warehouse + fileName)
 	if nil != err {
@@ -181,13 +176,4 @@ func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg){
 		return nil
 	})
 	writer.Flush()
-}
-
-func genFileName(origin, pwd string)(string, error){
-	fileName, err := util.AesEncryptString(origin, pwd)
-	if nil != err {
-		return "", err
-	}
-	return fileName, nil
-	//return fileName+"_"+time.Now().Format("20060102150405"), nil
 }

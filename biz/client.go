@@ -63,7 +63,11 @@ func UploadFile(cfg *Cfg){
 	// 发送功能代码
 	writer.Write(util.Int2Byte(TypeSend))
 	// 发送文件名数据
-	fileNameBytes := []byte(path.Base(cfg.ToSendFilePath))
+	encFileName, err := util.AesEncryptString(path.Base(cfg.ToSendFilePath), cfg.FileEncryptPwd)
+	if (nil != err){
+		util.NoticeAndExit("file name encrypt error: " + err.Error())
+	}
+	fileNameBytes := []byte(encFileName)
 	nameLen := len(fileNameBytes)
 	writer.Write(util.Int2Byte(nameLen))
 	writer.Write(fileNameBytes)

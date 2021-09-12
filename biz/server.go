@@ -167,10 +167,10 @@ func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg){
 			return nil
 		}
 		fileName := path.Base(fPath)
-		fileName, err = util.AesDecryptString(fileName, cfg.FileEncryptPwd)
-		if nil != err {
-			return nil
-		}
+		//fileName, err = util.AesDecryptString(fileName, cfg.FileEncryptPwd)
+		//if nil != err {
+		//	return nil
+		//}
 		writer.Write([]byte(fileName))
 		writer.Write(br)
 		return nil

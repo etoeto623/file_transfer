@@ -93,7 +93,11 @@ func ListFile(cfg *Cfg){
 	for{
 		data, _, err := reader.ReadLine()
 		if nil == err{
-			fmt.Println(string(data))
+			fileName, e := util.AesDecrypt(data, cfg.FileEncryptPwd)
+			if (nil != e){
+				util.NoticeAndExit("file name decrypt error when list: " + e.Error())
+			}
+			fmt.Println(string(fileName))
 		}
 		if nil != err || len(data) <= 0{
 			return

@@ -3,6 +3,7 @@ package biz
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"neolong.me/file_transfer/util"
 	"net"
@@ -167,9 +168,24 @@ func readFile(reader *bufio.Reader, cfg *Cfg){
 	}
 	defer file.Close()
 	tempBytes := make([]byte, fileLen)
-	readCount, err := reader.Read(tempBytes)
-	if nil != err || fileLen!=readCount {
-		return
+
+	allReaded := 0
+	buf := make([]byte, 1024)
+	for {
+		readed, e := reader.Read(buf)
+		if nil != e && e != io.EOF {
+			util.NoticeAndExit("download buf file read error: " + e.Error())
+		}
+		if readed <= 0 || (nil != e && e == io.EOF) {
+			break
+		}
+		for i := 0 ; i < readed; i++ {
+			tempBytes[i + allReaded] = buf[i]
+		}
+		allReaded += readed
+	}
+	if allReaded != fileLen {
+		util.NoticeAndExit("file download uncompleted, expect: " + strconv.Itoa(fileLen) + ", actually: " + strconv.Itoa(allReaded))
 	}
 
 	fileData, err := util.AesDecrypt(tempBytes, cfg.FileEncryptPwd)

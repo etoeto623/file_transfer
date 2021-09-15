@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+	"github.com/go-basic/uuid"
 )
 
 func DoServe(cfg *Cfg){
@@ -39,6 +40,9 @@ func DoServe(cfg *Cfg){
 }
 
 func handleTCP(conn *net.TCPConn, cfg *Cfg){
+	uuidStr := uuid.New()
+	ip := conn.RemoteAddr().(*net.TCPAddr).IP.String()
+	util.Log(uuidStr + " got request from " + ip)
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
@@ -47,25 +51,29 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	// 读取鉴权信息
 	readed, err := reader.Read(funcBytes)
 	if nil != err || readed!=intLen{
-		util.Log("auth length illegal")
+		util.Log(uuidStr + " auth length illegal")
 		return
 	}
-	authBytes := make([]byte, util.Byte2Int(funcBytes))
+	funcLen := util.Byte2Int(funcBytes)
+	if funcLen <= 0 { // illegal request
+		return
+	}
+	authBytes := make([]byte, funcLen)
 	readed, err = reader.Read(authBytes)
 	if nil != err || len(authBytes)!=readed{
-		util.Log("auth data illegal")
+		util.Log(uuidStr + " auth data illegal")
 		return
 	}
 	authData, err := util.RsaDecrypt(authBytes, cfg.RsaDecKey)
 	if nil != err{
-		util.Log("auth data verify fail")
+		util.Log(uuidStr + " auth data verify fail")
 		return
 	}
 	clientTs := util.Byte2Int(authData)
 	now := int(time.Now().Unix())
 	if math.Abs(float64(now-clientTs)) > 5 {
 		// 5s内有效
-		util.Log("auth expired")
+		util.Log(uuidStr + " auth expired")
 		return
 	}
 
@@ -83,7 +91,7 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	case TypeFetch:
 		downloadFile(reader, conn, &funcBytes, cfg)
 	default:
-		util.Log("function code illegal")
+		util.Log(uuidStr + " function code illegal")
 	}
 }
 

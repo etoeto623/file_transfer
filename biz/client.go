@@ -4,17 +4,17 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"neolong.me/file_transfer/util"
 	"net"
 	"os"
 	"path"
 	"strconv"
 	"strings"
 	"time"
+
+	"neolong.me/file_transfer/util"
 )
 
-func conn(cfg *Cfg) *net.TCPConn{
+func conn(cfg *Cfg) *net.TCPConn {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", cfg.ServerAddress)
 	if nil != err {
 		util.NoticeAndExit("Resolve tcp error: " + err.Error())
@@ -25,7 +25,7 @@ func conn(cfg *Cfg) *net.TCPConn{
 	}
 	return tcpConn
 }
-func sendAuth(cfg *Cfg, writer *bufio.Writer){
+func sendAuth(cfg *Cfg, writer *bufio.Writer) {
 	authData, err := util.RsaEncrypt(util.Int2Byte(int(time.Now().Unix())), cfg.RsaEncKey)
 	if nil != err {
 		util.NoticeAndExit("auth encrypt error: " + err.Error())
@@ -37,21 +37,11 @@ func sendAuth(cfg *Cfg, writer *bufio.Writer){
 	writer.Write(authData)
 }
 
-func UploadFile(cfg *Cfg){
+func UploadFile(cfg *Cfg) {
 	if !strings.HasPrefix(cfg.ToSendFilePath, "/") &&
 		!strings.HasPrefix(cfg.ToSendFilePath, "~/") &&
-		!strings.HasPrefix(cfg.ToSendFilePath, "./"){
+		!strings.HasPrefix(cfg.ToSendFilePath, "./") {
 		cfg.ToSendFilePath = "./" + cfg.ToSendFilePath
-	}
-
-	data, err := ioutil.ReadFile(cfg.ToSendFilePath)
-	if nil != err{
-		util.NoticeAndExit("read file error when send file: " + err.Error())
-	}
-
-	encData, err := util.AesEncrypt(data, cfg.FileEncryptPwd)
-	if nil != err {
-		util.NoticeAndExit("encrypt file bytes error: " + err.Error())
 	}
 
 	tcpConn := conn(cfg)
@@ -65,7 +55,7 @@ func UploadFile(cfg *Cfg){
 	writer.Write(util.Int2Byte(TypeSend))
 	// 发送文件名数据
 	encFileName, err := util.AesEncryptString(path.Base(cfg.ToSendFilePath), cfg.FileEncryptPwd)
-	if (nil != err){
+	if nil != err {
 		util.NoticeAndExit("file name encrypt error: " + err.Error())
 	}
 	fileNameBytes := []byte(encFileName)
@@ -73,13 +63,45 @@ func UploadFile(cfg *Cfg){
 	writer.Write(util.Int2Byte(nameLen))
 	writer.Write(fileNameBytes)
 
-	count, _ := writer.Write(encData)
+	// TODO 这里要进行文件分块读取
+	f, err := os.Open(cfg.ToSendFilePath)
+	if nil != err {
+		util.NoticeAndExit("file read error: " + err.Error())
+	}
+	defer f.Close()
+	buf := make([]byte, cfg.BuckSize)
+	writeCount := 0
+	for {
+		n, err := f.Read(buf)
+		if nil != err {
+			util.Log("file bucket read error: " + err.Error())
+			sendFinishSignal(writer)
+			return
+		}
+		if n <= 0 {
+			break
+		}
+
+		enced, err := util.AesEncrypt(buf[0:n], cfg.FileEncryptPwd)
+		if nil != err {
+			util.Log("file bucket encrypt error: " + err.Error())
+			sendFinishSignal(writer)
+			return
+		}
+		bucketLen := len(enced)
+		writer.Write(util.Int2Byte(TypeFileBuck))
+		writer.Write(util.Int2Byte(bucketLen))
+		writer.Write(enced)
+		writer.Flush()
+		writeCount += n
+	}
+
 	writer.Flush()
 	tcpConn.CloseWrite()
-	util.Log("file send finish, send size: " + strconv.Itoa(count))
+	util.Log("file send finish, send size: " + strconv.Itoa(writeCount))
 }
 
-func ListFile(cfg *Cfg){
+func ListFile(cfg *Cfg) {
 	tcpConn := conn(cfg)
 	defer tcpConn.Close()
 
@@ -91,22 +113,26 @@ func ListFile(cfg *Cfg){
 
 	// 读取文件列表数据
 	reader := bufio.NewReader(tcpConn)
-	for{
+	for {
 		data, _, err := reader.ReadLine()
-		if nil == err{
+		if nil == err {
 			fileName, e := util.AesDecryptString(string(data), cfg.FileEncryptPwd)
-			if (nil != e){
+			if nil != e {
 				util.NoticeAndExit("file name decrypt error when list: " + e.Error())
 			}
 			fmt.Println(string(fileName))
 		}
-		if nil != err || len(data) <= 0{
+		if nil != err || len(data) <= 0 {
 			return
 		}
 	}
 }
 
-func DownloadFile(cfg *Cfg){
+func sendFinishSignal(writer *bufio.Writer) {
+	writer.Write(util.Int2Byte(TypeFinish))
+}
+
+func DownloadFile(cfg *Cfg) {
 	if len(cfg.ServerFileName) <= 0 {
 		fmt.Println("please specify file name")
 		return
@@ -132,7 +158,7 @@ func DownloadFile(cfg *Cfg){
 	resultBytes := make([]byte, funcLen)
 
 	readed, err := reader.Read(resultBytes)
-	if nil != err || len(resultBytes)!=readed {
+	if nil != err || len(resultBytes) != readed {
 		return
 	}
 
@@ -145,7 +171,7 @@ func DownloadFile(cfg *Cfg){
 	}
 }
 
-func readFailInfo(reader *bufio.Reader){
+func readFailInfo(reader *bufio.Reader) {
 	data, _, err := reader.ReadLine()
 	if nil != err || len(data) <= 0 {
 		return
@@ -153,11 +179,11 @@ func readFailInfo(reader *bufio.Reader){
 	fmt.Println("server response: " + string(data))
 }
 
-func readFile(reader *bufio.Reader, cfg *Cfg){
+func readFile(reader *bufio.Reader, cfg *Cfg) {
 	infoLen := len(util.Int2Byte(TypeFetch))
 	infoBytes := make([]byte, infoLen)
 	readed, err := reader.Read(infoBytes)
-	if nil != err || len(infoBytes)!=readed{
+	if nil != err || len(infoBytes) != readed {
 		return
 	}
 	fileLen := util.Byte2Int(infoBytes)
@@ -179,8 +205,8 @@ func readFile(reader *bufio.Reader, cfg *Cfg){
 		if readed <= 0 || (nil != e && e == io.EOF) {
 			break
 		}
-		for i := 0 ; i < readed; i++ {
-			tempBytes[i + allReaded] = buf[i]
+		for i := 0; i < readed; i++ {
+			tempBytes[i+allReaded] = buf[i]
 		}
 		allReaded += readed
 	}

@@ -3,16 +3,23 @@ package biz
 import (
 	"encoding/json"
 	"io/ioutil"
-	"neolong.me/file_transfer/util"
 	"os"
 	"os/user"
 	"strings"
 	"sync"
+
+	"neolong.me/file_transfer/util"
 )
 
 const TypeSend int = 233
 const TypeList int = 666
 const TypeFetch int = 555
+
+// 文件块传输
+const TypeFileBuck = 623
+
+// 结束标志
+const TypeFinish = 600
 
 const RESULT_SUCCESS int = 88
 const RESULT_FAIL int = 55
@@ -29,16 +36,17 @@ var cfgPath = homeDir() + "/.ftrc"
 // 配置信息
 type BaseCfg struct {
 	ServerAddress string // 服务器地址
-	Warehouse string // 服务器文件保存文件夹
-	RsaEncKey string // rsa的密钥
-	RsaDecKey string
+	Warehouse     string // 服务器文件保存文件夹
+	RsaEncKey     string // rsa的密钥
+	RsaDecKey     string
 }
 type Cfg struct {
 	*BaseCfg
-	Port int  // 服务器的端口
-	ToSendFilePath string  // 待上传的文件的路径
-	ServerFileName string  // 需要下载的服务器上的文件名
-	FileEncryptPwd string  // 文件加密的密钥
+	Port           int    // 服务器的端口
+	ToSendFilePath string // 待上传的文件的路径
+	ServerFileName string // 需要下载的服务器上的文件名
+	FileEncryptPwd string // 文件加密的密钥
+	BuckSize       int    // 文件传输块大小
 }
 
 func (cfg BaseCfg) toString() string {
@@ -67,7 +75,7 @@ func GetCfg() Cfg {
 	defer file.Close()
 
 	data, err := ioutil.ReadAll(file)
-	if nil!=err {
+	if nil != err {
 		util.Log("config file read error")
 		os.Exit(1)
 	}
@@ -80,9 +88,9 @@ func GetCfg() Cfg {
 	return config
 }
 
-func getCmdCfg(args []string, typePort string) (string, bool){
+func getCmdCfg(args []string, typePort string) (string, bool) {
 	if nil == args || len(args) == 0 {
-		return "",false
+		return "", false
 	}
 	prefix := "-" + typePort + "="
 	for i := range args {

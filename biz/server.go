@@ -6,24 +6,25 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"math"
-	"neolong.me/file_transfer/util"
 	"net"
 	"os"
 	"path"
 	"path/filepath"
 	"strconv"
 	"time"
+
 	"github.com/go-basic/uuid"
+	"neolong.me/file_transfer/util"
 )
 
-func DoServe(cfg *Cfg){
+func DoServe(cfg *Cfg) {
 	util.Log("start to bootstrap server")
 	tcpAddr, e := net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(cfg.Port))
-	if e != nil{
+	if e != nil {
 		util.NoticeAndExit("server start error:" + e.Error())
 	}
 	tcpListener, e := net.ListenTCP("tcp", tcpAddr)
-	if e != nil{
+	if e != nil {
 		util.NoticeAndExit("server listen error: " + e.Error())
 	}
 	defer tcpListener.Close()
@@ -39,7 +40,7 @@ func DoServe(cfg *Cfg){
 	}
 }
 
-func handleTCP(conn *net.TCPConn, cfg *Cfg){
+func handleTCP(conn *net.TCPConn, cfg *Cfg) {
 	uuidStr := uuid.New()
 	ip := conn.RemoteAddr().(*net.TCPAddr).IP.String()
 	util.Log(uuidStr + " got request from " + ip)
@@ -50,7 +51,7 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	funcBytes := make([]byte, intLen)
 	// 读取鉴权信息
 	readed, err := reader.Read(funcBytes)
-	if nil != err || readed!=intLen{
+	if nil != err || readed != intLen {
 		util.Log(uuidStr + " auth length illegal")
 		return
 	}
@@ -60,12 +61,12 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	}
 	authBytes := make([]byte, funcLen)
 	readed, err = reader.Read(authBytes)
-	if nil != err || len(authBytes)!=readed{
+	if nil != err || len(authBytes) != readed {
 		util.Log(uuidStr + " auth data illegal")
 		return
 	}
 	authData, err := util.RsaDecrypt(authBytes, cfg.RsaDecKey)
-	if nil != err{
+	if nil != err {
 		util.Log(uuidStr + " auth data verify fail")
 		return
 	}
@@ -78,9 +79,10 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	}
 
 	readed, err = reader.Read(funcBytes)
-	if nil != err || len(funcBytes)!=readed{
+	if nil != err || len(funcBytes) != readed {
 		return
 	}
+
 	// 读取客户端的请求功能
 	funcCode := util.Byte2Int(funcBytes)
 	switch funcCode {
@@ -95,41 +97,73 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg){
 	}
 }
 
-/** 接收文件 */
-func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg){
+/** 接收文件，分块进行 */
+func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
 	// 读取文件名
 	readed, err := reader.Read(*funcBytes)
-	if nil != err || len(*funcBytes)!=readed{
+	if nil != err || len(*funcBytes) != readed {
 		return
 	}
 	fileNameLen := util.Byte2Int(*funcBytes)
 	fileNameBytes := make([]byte, fileNameLen)
 	readed, err = reader.Read(fileNameBytes)
-	if nil != err || len(fileNameBytes)!=readed{
+	if nil != err || len(fileNameBytes) != readed {
 		return
 	}
 	fileName := string(fileNameBytes)
-	// 读取文件流
 	file, err := os.Create(cfg.Warehouse + fileName)
 	if nil != err {
 		return
 	}
 	defer file.Close()
-	temp := make([]byte, 1024)
-	for{
-		readCount, err := reader.Read(temp)
-		if nil != err && err != io.EOF {
+
+	// 读取文件流
+	intLen := len(util.Int2Byte(TypeSend))
+	intBuf := make([]byte, intLen)
+
+	receiveFileSize := 0
+	for {
+		_, err = reader.Read(intBuf)
+		if nil != err {
+			util.Log("function code read error: " + err.Error())
 			return
 		}
-		if readCount <= 0 || (nil != err && err == io.EOF) {
-			break
+		funcCode := util.Byte2Int(intBuf)
+
+		switch funcCode {
+		case TypeFinish:
+			util.Log("file receive finish, size: " + strconv.Itoa(receiveFileSize))
+			return
+		case TypeFileBuck:
+			_, err = reader.Read(intBuf)
+			if nil != err {
+				util.Log("file bucket size read error: " + err.Error())
+				return
+			}
+			bucketSize := util.Byte2Int(intBuf)
+			bucketBuf := make([]byte, bucketSize)
+			n, err := reader.Read(bucketBuf)
+			if nil != err {
+				util.Log("file bucket read error: " + err.Error())
+				return
+			}
+			if n < bucketSize {
+				util.Log("file bucket read uncomplete")
+				return
+			}
+			decrypted, err := util.AesDecrypt(bucketBuf, cfg.FileEncryptPwd)
+			if nil != err {
+				util.Log("file bucket decrypt error: " + err.Error())
+				return
+			}
+
+			file.Write(decrypted)
+			receiveFileSize += len(decrypted)
 		}
-		file.Write(temp[:readCount])
 	}
-	util.Log("server receive file finish")
 }
 
-func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg){
+func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
 	writer := bufio.NewWriter(conn)
 	readed, err := reader.Read(*funcBytes)
 	if nil != err || len(*funcBytes) != readed {
@@ -142,7 +176,7 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *C
 	fileNameLen := util.Byte2Int(*funcBytes)
 	fileNameBytes := make([]byte, fileNameLen)
 	readed, err = reader.Read(fileNameBytes)
-	if nil != err || fileNameLen!=readed {
+	if nil != err || fileNameLen != readed {
 		writer.Write(util.Int2Byte(RESULT_FAIL))
 		writer.Write(util.Int2Byte(len(FAIL_COMMON)))
 		writer.Write([]byte(FAIL_COMMON))
@@ -167,11 +201,11 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *C
 }
 
 // 列出文件列表
-func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg){
+func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
 	writer := bufio.NewWriter(conn)
 	br := []byte("\n")
 	filepath.Walk(cfg.Warehouse, func(fPath string, info fs.FileInfo, err error) error {
-		if info.IsDir(){
+		if info.IsDir() {
 			return nil
 		}
 		fileName := path.Base(fPath)

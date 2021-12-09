@@ -121,7 +121,6 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
 	intLen := len(util.Int2Byte(TypeSend))
 	intBuf := make([]byte, intLen)
 
-	receiveFileSize := 0
 	for {
 		_, err = reader.Read(intBuf)
 		if nil != err {
@@ -132,37 +131,49 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
 
 		switch funcCode {
 		case TypeFinish:
-			util.Log("file receive finish, size: " + strconv.Itoa(receiveFileSize))
+			util.Log("file receive finish")
 			return
 		case TypeFileBuck:
-			_, err = reader.Read(intBuf)
+			_, err = reader.Read(intBuf) // 读取文件分块的大小
 			if nil != err {
 				util.Log("file bucket size read error: " + err.Error())
-				return
-			}
-			bucketSize := util.Byte2Int(intBuf)
-			bucketBuf := make([]byte, bucketSize)
-			n, err := reader.Read(bucketBuf)
-			if nil != err {
-				util.Log("file bucket read error: " + err.Error())
-				return
-			}
-			if n < bucketSize {
-				util.Log("file bucket read uncomplete")
-				return
-			}
-			decrypted, err := util.AesDecrypt(bucketBuf, cfg.FileEncryptPwd)
-			if nil != err {
-				util.Log("file bucket decrypt error: " + err.Error())
+				deleteFile(file)
 				return
 			}
 
-			file.Write(decrypted)
-			receiveFileSize += len(decrypted)
+			// 分块文件大小
+			bucketSize := util.Byte2Int(intBuf)
+			bucketBuf := make([]byte, bucketSize)
+			n, err := io.ReadFull(reader, bucketBuf) // 这里要使用ReadFull，否则可能读取不完全
+			if nil != err {
+				util.Log("file bucket read error: " + err.Error())
+				deleteFile(file)
+				return
+			}
+			util.Log(" --------- read bucket: " + strconv.Itoa(n) + ", " + strconv.Itoa(bucketSize))
+			if n < bucketSize {
+				util.Log("file bucket read uncomplete")
+				deleteFile(file)
+				return
+			}
+			// decrypted, err := util.AesDecrypt(bucketBuf, cfg.FileEncryptPwd)
+			// if nil != err {
+			// 	util.Log("file bucket decrypt error: " + err.Error())
+			// 	return
+			// }
+			file.Write(intBuf) // 记录分块大小
+			file.Write(bucketBuf)
 		}
 	}
 }
 
+func deleteFile(f *os.File) {
+	if nil != f {
+		os.Remove(f.Name())
+	}
+}
+
+// 下载文件，需要进行分块下载
 func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
 	writer := bufio.NewWriter(conn)
 	readed, err := reader.Read(*funcBytes)

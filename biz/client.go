@@ -73,12 +73,13 @@ func UploadFile(cfg *Cfg) {
 	writeCount := 0
 	for {
 		n, err := f.Read(buf)
-		if nil != err {
+		if nil != err && err != io.EOF {
 			util.Log("file bucket read error: " + err.Error())
 			sendFinishSignal(writer)
 			return
 		}
-		if n <= 0 {
+		if n <= 0 || (nil != err && err == io.EOF) {
+			sendFinishSignal(writer)
 			break
 		}
 

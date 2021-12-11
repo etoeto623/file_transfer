@@ -11,6 +11,7 @@ import (
 )
 
 const TypeSend int = 233
+const TypeDelete int = 234
 const TypeList int = 666
 const TypeFetch int = 555
 

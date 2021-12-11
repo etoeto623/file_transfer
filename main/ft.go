@@ -74,6 +74,17 @@ func main() {
 		}, func(cfg *base.Cfg) {
 			util.GenRsaKey(1024)
 		})
+	case "delete":
+		prepareCall(func(cfg *base.Cfg) {
+			if len(os.Args) < 3 {
+				util.NoticeAndExit("param error")
+			}
+			if len(*filePasswd) > 0 {
+				cfg.FileEncryptPwd = *filePasswd
+			}
+			localFilePath := os.Args[len(os.Args)-1]
+			cfg.ToSendFilePath = localFilePath
+		}, biz.DeleteFile)
 	default:
 		util.NoticeAndExit("illegal mode")
 	}

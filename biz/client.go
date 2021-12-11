@@ -36,6 +36,42 @@ func sendAuth(cfg *base.Cfg, writer *bufio.Writer) {
 	// 发送权限验证数据
 	writer.Write(util.Int2Byte(authLen))
 	writer.Write(authData)
+	writer.Flush()
+}
+
+func DeleteFile(cfg *base.Cfg) {
+	tcpConn := conn(cfg)
+	defer tcpConn.Close()
+
+	writer := bufio.NewWriter(tcpConn)
+
+	// 发送权限验证数据
+	sendAuth(cfg, writer)
+	// 发送功能代码
+	writer.Write(util.Int2Byte(base.TypeDelete))
+	writer.Flush()
+	// 发送文件名数据
+	encFileName, err := util.AesEncryptString(path.Base(cfg.ToSendFilePath), cfg.FileEncryptPwd)
+	if nil != err {
+		util.NoticeAndExit("file name encrypt error: " + err.Error())
+	}
+	fileNameBytes := []byte(encFileName)
+	nameLen := len(fileNameBytes)
+	writer.Write(util.Int2Byte(nameLen))
+	writer.Write(fileNameBytes)
+	writer.Flush()
+
+	// 接收信息
+	reader := bufio.NewReader(tcpConn)
+	intLen := len(util.Int2Byte(base.TypeDelete))
+	intBytes := make([]byte, intLen)
+	io.ReadFull(reader, intBytes)
+	io.ReadFull(reader, intBytes)
+	msgBytes := make([]byte, util.Byte2Int(intBytes))
+	n, _ := io.ReadFull(reader, msgBytes)
+	if n > 0 {
+		util.LogInfo(string(msgBytes))
+	}
 }
 
 func UploadFile(cfg *base.Cfg) {

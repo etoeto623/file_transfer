@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-basic/uuid"
@@ -50,7 +51,7 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 	intLen := len(util.Int2Byte(base.TypeSend))
 	funcBytes := make([]byte, intLen)
 	// 读取鉴权信息
-	readed, err := reader.Read(funcBytes)
+	readed, err := io.ReadFull(reader, funcBytes)
 	if nil != err || readed != intLen {
 		util.Log(uuidStr + " auth length illegal")
 		return
@@ -78,7 +79,7 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 		return
 	}
 
-	readed, err = reader.Read(funcBytes)
+	readed, err = io.ReadFull(reader, funcBytes)
 	if nil != err || len(funcBytes) != readed {
 		return
 	}
@@ -92,6 +93,8 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 		listFile(conn, &funcBytes, cfg)
 	case base.TypeFetch:
 		downloadFile(reader, conn, &funcBytes, cfg)
+	case base.TypeDelete:
+		commandDeleteFile(reader, conn, &funcBytes, cfg)
 	default:
 		util.Log(uuidStr + " function code illegal")
 	}
@@ -156,11 +159,7 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 				deleteFile(file)
 				return
 			}
-			// decrypted, err := util.AesDecrypt(bucketBuf, cfg.FileEncryptPwd)
-			// if nil != err {
-			// 	util.Log("file bucket decrypt error: " + err.Error())
-			// 	return
-			// }
+
 			file.Write(intBuf) // 记录分块大小
 			file.Write(bucketBuf)
 		}
@@ -171,6 +170,38 @@ func deleteFile(f *os.File) {
 	if nil != f {
 		os.Remove(f.Name())
 	}
+}
+
+func commandDeleteFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *base.Cfg) {
+	readed, err := io.ReadFull(reader, *funcBytes)
+	if nil != err || len(*funcBytes) != readed {
+		return
+	}
+	fileNameLen := util.Byte2Int(*funcBytes)
+	fileNameBytes := make([]byte, fileNameLen)
+	readed, err = io.ReadFull(reader, fileNameBytes)
+	if nil != err || len(fileNameBytes) != readed {
+		return
+	}
+	fileName := string(fileNameBytes)
+
+	writer := bufio.NewWriter(conn)
+	if strings.Contains(fileName, "/") || strings.Contains(fileName, "\\") {
+		util.LogInfo("command delete file has illegal character: " + fileName)
+		writeMsg(writer, base.RESULT_FAIL, "illegal file path")
+		return
+	}
+
+	filePath := cfg.Warehouse + fileName
+	_, err = os.Stat(filePath)
+	if nil != err {
+		util.LogInfo("command delete file check error: " + err.Error())
+		writeMsg(writer, base.RESULT_FAIL, err.Error())
+		return
+	}
+
+	os.Remove(filePath)
+	writeMsg(writer, base.RESULT_SUCCESS, "delete success")
 }
 
 // 下载文件，需要进行分块下载

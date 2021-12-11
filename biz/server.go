@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"math"
 	"net"
 	"os"
@@ -177,37 +176,83 @@ func deleteFile(f *os.File) {
 func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
 	writer := bufio.NewWriter(conn)
 	readed, err := reader.Read(*funcBytes)
+
+	// 发生错误
 	if nil != err || len(*funcBytes) != readed {
-		writer.Write(util.Int2Byte(RESULT_FAIL))
-		writer.Write(util.Int2Byte(len(FAIL_COMMON)))
-		writer.Write([]byte(FAIL_COMMON))
-		writer.Flush()
-		return
-	}
-	fileNameLen := util.Byte2Int(*funcBytes)
-	fileNameBytes := make([]byte, fileNameLen)
-	readed, err = reader.Read(fileNameBytes)
-	if nil != err || fileNameLen != readed {
-		writer.Write(util.Int2Byte(RESULT_FAIL))
-		writer.Write(util.Int2Byte(len(FAIL_COMMON)))
-		writer.Write([]byte(FAIL_COMMON))
-		writer.Flush()
-		return
-	}
-	fileName := string(fileNameBytes)
-	fileBytes, err := ioutil.ReadFile(cfg.Warehouse + fileName)
-	if nil != err {
-		errMsg := err.Error()
-		writer.Write(util.Int2Byte(RESULT_FAIL))
-		writer.Write(util.Int2Byte(len(errMsg)))
-		writer.Write([]byte(errMsg))
-		writer.Flush()
+		writeMsg(writer, RESULT_FAIL, FAIL_COMMON)
 		return
 	}
 
-	writer.Write(util.Int2Byte(RESULT_SUCCESS))
-	writer.Write(util.Int2Byte(len(fileBytes)))
-	writer.Write(fileBytes)
+	// 读取需要传输的文件名
+	fileNameLen := util.Byte2Int(*funcBytes)
+	fileNameBytes := make([]byte, fileNameLen)
+	readed, err = reader.Read(fileNameBytes)
+	if nil != err || fileNameLen != readed { // 读取文件失败
+		writeMsg(writer, RESULT_FAIL, FAIL_COMMON)
+		return
+	}
+
+	intLen := len(util.Int2Byte(TypeSend))
+	fileName := string(fileNameBytes)
+
+	// 开始分块读取文件
+	file, err := os.Open(cfg.Warehouse + fileName)
+	if nil != err {
+		util.Log("target file [" + fileName + "] read error: " + err.Error())
+		writeMsg(writer, RESULT_FAIL, err.Error())
+		return
+	}
+
+	intBytes := make([]byte, intLen)
+	writer.Write(util.Int2Byte(TypeSend)) // 文件开始传输的标志
+	for {
+		n, err := file.Read(intBytes)
+		if nil != err {
+			if err != io.EOF {
+				// writeMsg(writer, RESULT_FAIL, err.Error())
+				return
+			}
+			if err == io.EOF {
+				break
+			}
+		}
+		if n <= 0 {
+			break
+		}
+
+		bucketSize := util.Byte2Int(intBytes)
+		bucketBuf := make([]byte, bucketSize)
+		n, err = io.ReadFull(file, bucketBuf)
+		if nil != err {
+			// writeMsg(writer, RESULT_FAIL, err.Error())
+			return
+		}
+		if n < bucketSize {
+			// writeMsg(writer, RESULT_FAIL, "file bucket read uncomplete")
+			return
+		}
+		writer.Write(intBytes)
+		writer.Write(bucketBuf)
+		writer.Flush()
+	}
+
+	// fileBytes, err := ioutil.ReadFile(cfg.Warehouse + fileName)
+	// if nil != err {
+	// 	errMsg := err.Error()
+	// 	writeMsg(writer, RESULT_FAIL, errMsg)
+	// 	return
+	// }
+
+	// writer.Write(util.Int2Byte(RESULT_SUCCESS))
+	// writer.Write(util.Int2Byte(len(fileBytes)))
+	// writer.Write(fileBytes)
+	writer.Flush()
+}
+
+func writeMsg(writer *bufio.Writer, code int, msg string) {
+	writer.Write(util.Int2Byte(code))
+	writer.Write(util.Int2Byte(len(msg)))
+	writer.Write([]byte(msg))
 	writer.Flush()
 }
 

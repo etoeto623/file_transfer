@@ -133,9 +133,10 @@ func sendFinishSignal(writer *bufio.Writer) {
 	writer.Write(util.Int2Byte(TypeFinish))
 }
 
+// 从服务器下载文件
 func DownloadFile(cfg *Cfg) {
 	if len(cfg.ServerFileName) <= 0 {
-		fmt.Println("please specify file name")
+		util.Log("please specify file name")
 		return
 	}
 	tcpConn := conn(cfg)
@@ -146,14 +147,17 @@ func DownloadFile(cfg *Cfg) {
 	writer.Write(util.Int2Byte(TypeFetch))
 	fileName, err := util.AesEncryptString(cfg.ServerFileName, cfg.FileEncryptPwd)
 	if nil != err {
-		fmt.Println("file name encrypt fail")
+		util.Log("file name encrypt fail")
 		return
 	}
+
+	// 发送文件名称
 	nameBytes := []byte(fileName)
 	writer.Write(util.Int2Byte(len(nameBytes)))
 	writer.Write(nameBytes)
 	writer.Flush()
 
+	// 开始准备接收数据
 	reader := bufio.NewReader(tcpConn)
 	funcLen := len(util.Int2Byte(TypeFetch))
 	resultBytes := make([]byte, funcLen)
@@ -168,6 +172,7 @@ func DownloadFile(cfg *Cfg) {
 	case RESULT_FAIL:
 		readFailInfo(reader)
 	case RESULT_SUCCESS:
+	case TypeSend:
 		readFile(reader, cfg)
 	}
 }
@@ -180,45 +185,62 @@ func readFailInfo(reader *bufio.Reader) {
 	fmt.Println("server response: " + string(data))
 }
 
+// 开始读取文件
 func readFile(reader *bufio.Reader, cfg *Cfg) {
-	infoLen := len(util.Int2Byte(TypeFetch))
-	infoBytes := make([]byte, infoLen)
-	readed, err := reader.Read(infoBytes)
-	if nil != err || len(infoBytes) != readed {
-		return
-	}
-	fileLen := util.Byte2Int(infoBytes)
+	intLen := len(util.Int2Byte(TypeFetch))
+	intBytes := make([]byte, intLen)
 
 	file, err := os.Create(cfg.ServerFileName)
 	if nil != err {
 		return
 	}
 	defer file.Close()
-	tempBytes := make([]byte, fileLen)
 
-	allReaded := 0
-	buf := make([]byte, 1024)
 	for {
-		readed, e := reader.Read(buf)
-		if nil != e && e != io.EOF {
-			util.NoticeAndExit("download buf file read error: " + e.Error())
+		n, err := io.ReadFull(reader, intBytes)
+		if nil != err {
+			if err == io.EOF {
+				break
+			}
+			util.Log("int bytes read error: " + err.Error())
+			removeFile(file)
+			return
 		}
-		if readed <= 0 || (nil != e && e == io.EOF) {
-			break
+		if n < intLen {
+			if n <= 0 {
+				return
+			}
+			util.Log("data receive uncomplete")
+			removeFile(file)
+			return
 		}
-		for i := 0; i < readed; i++ {
-			tempBytes[i+allReaded] = buf[i]
-		}
-		allReaded += readed
-	}
-	if allReaded != fileLen {
-		util.NoticeAndExit("file download uncompleted, expect: " + strconv.Itoa(fileLen) + ", actually: " + strconv.Itoa(allReaded))
-	}
 
-	fileData, err := util.AesDecrypt(tempBytes, cfg.FileEncryptPwd)
-	if nil != err {
-		return
-	}
+		bucketSize := util.Byte2Int(intBytes)
+		bucketBytes := make([]byte, bucketSize)
+		n, err = io.ReadFull(reader, bucketBytes)
+		if nil != err {
+			util.Log("file bucket read error: " + err.Error())
+			removeFile(file)
+			return
+		}
+		if n < bucketSize {
+			util.Log("file bucket read uncomplete")
+			removeFile(file)
+			return
+		}
 
-	file.Write(fileData)
+		decryptBytes, err := util.AesDecrypt(bucketBytes, cfg.FileEncryptPwd)
+		if nil != err {
+			util.Log("file bucket decrypt error: " + err.Error())
+			removeFile(file)
+			return
+		}
+		file.Write(decryptBytes)
+	}
+}
+
+func removeFile(file *os.File) {
+	if nil != file {
+		os.Remove(file.Name())
+	}
 }

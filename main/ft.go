@@ -4,23 +4,23 @@ import (
 	"flag"
 	"os"
 
+	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/biz"
 	"neolong.me/file_transfer/util"
 )
 
-func send(cfg *biz.Cfg) {
+func send(cfg *base.Cfg) {
 	biz.UploadFile(cfg)
 }
-func serve(cfg *biz.Cfg) {
+func serve(cfg *base.Cfg) {
 	biz.DoServe(cfg)
 }
-func fetch(cfg *biz.Cfg) {
+func fetch(cfg *base.Cfg) {
 	biz.DownloadFile(cfg)
 }
 
-func prepareCall(paramFunc, worker func(cfg *biz.Cfg)) {
-	util.Log("prepare to call")
-	cfg := biz.GetCfg()
+func prepareCall(paramFunc, worker func(cfg *base.Cfg)) {
+	cfg := base.GetCfg()
 	paramFunc(&cfg)
 	worker(&cfg)
 }
@@ -39,7 +39,7 @@ func main() {
 	}
 	switch os.Args[1] {
 	case "send":
-		prepareCall(func(cfg *biz.Cfg) {
+		prepareCall(func(cfg *base.Cfg) {
 			if len(os.Args) < 3 {
 				util.NoticeAndExit("param error")
 			}
@@ -50,19 +50,19 @@ func main() {
 			cfg.ToSendFilePath = localFilePath
 		}, send)
 	case "list":
-		prepareCall(func(cfg *biz.Cfg) {
-		}, func(cfg *biz.Cfg) {
+		prepareCall(func(cfg *base.Cfg) {
+		}, func(cfg *base.Cfg) {
 			biz.ListFile(cfg)
 		})
 	case "serve":
-		prepareCall(func(cfg *biz.Cfg) {
+		prepareCall(func(cfg *base.Cfg) {
 			if *serverPort < 100 || *serverPort >= 65535 {
 				util.NoticeAndExit("port is illegal, which should be greater than 100 and less than 65535")
 			}
 			cfg.Port = *serverPort
 		}, serve)
 	case "fetch":
-		prepareCall(func(cfg *biz.Cfg) {
+		prepareCall(func(cfg *base.Cfg) {
 			if len(os.Args) < 3 {
 				util.NoticeAndExit("param error")
 			}
@@ -70,8 +70,8 @@ func main() {
 			cfg.ServerFileName = serverFileName
 		}, fetch)
 	case "genkey":
-		prepareCall(func(cfg *biz.Cfg) {
-		}, func(cfg *biz.Cfg) {
+		prepareCall(func(cfg *base.Cfg) {
+		}, func(cfg *base.Cfg) {
 			util.GenRsaKey(1024)
 		})
 	default:

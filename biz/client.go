@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/util"
 )
 
-func conn(cfg *Cfg) *net.TCPConn {
+func conn(cfg *base.Cfg) *net.TCPConn {
 	tcpAddr, err := net.ResolveTCPAddr("tcp", cfg.ServerAddress)
 	if nil != err {
 		util.NoticeAndExit("Resolve tcp error: " + err.Error())
@@ -25,7 +26,7 @@ func conn(cfg *Cfg) *net.TCPConn {
 	}
 	return tcpConn
 }
-func sendAuth(cfg *Cfg, writer *bufio.Writer) {
+func sendAuth(cfg *base.Cfg, writer *bufio.Writer) {
 	authData, err := util.RsaEncrypt(util.Int2Byte(int(time.Now().Unix())), cfg.RsaEncKey)
 	if nil != err {
 		util.NoticeAndExit("auth encrypt error: " + err.Error())
@@ -37,7 +38,7 @@ func sendAuth(cfg *Cfg, writer *bufio.Writer) {
 	writer.Write(authData)
 }
 
-func UploadFile(cfg *Cfg) {
+func UploadFile(cfg *base.Cfg) {
 	if !strings.HasPrefix(cfg.ToSendFilePath, "/") &&
 		!strings.HasPrefix(cfg.ToSendFilePath, "~/") &&
 		!strings.HasPrefix(cfg.ToSendFilePath, "./") {
@@ -52,7 +53,7 @@ func UploadFile(cfg *Cfg) {
 	// 发送权限验证数据
 	sendAuth(cfg, writer)
 	// 发送功能代码
-	writer.Write(util.Int2Byte(TypeSend))
+	writer.Write(util.Int2Byte(base.TypeSend))
 	// 发送文件名数据
 	encFileName, err := util.AesEncryptString(path.Base(cfg.ToSendFilePath), cfg.FileEncryptPwd)
 	if nil != err {
@@ -90,7 +91,7 @@ func UploadFile(cfg *Cfg) {
 			return
 		}
 		bucketLen := len(enced)
-		writer.Write(util.Int2Byte(TypeFileBuck))
+		writer.Write(util.Int2Byte(base.TypeFileBuck))
 		writer.Write(util.Int2Byte(bucketLen))
 		writer.Write(enced)
 		writer.Flush()
@@ -102,14 +103,14 @@ func UploadFile(cfg *Cfg) {
 	util.Log("file send finish, send size: " + strconv.Itoa(writeCount))
 }
 
-func ListFile(cfg *Cfg) {
+func ListFile(cfg *base.Cfg) {
 	tcpConn := conn(cfg)
 	defer tcpConn.Close()
 
 	writer := bufio.NewWriter(tcpConn)
 	// 发送验证数据
 	sendAuth(cfg, writer)
-	writer.Write(util.Int2Byte(TypeList))
+	writer.Write(util.Int2Byte(base.TypeList))
 	writer.Flush()
 
 	// 读取文件列表数据
@@ -130,11 +131,11 @@ func ListFile(cfg *Cfg) {
 }
 
 func sendFinishSignal(writer *bufio.Writer) {
-	writer.Write(util.Int2Byte(TypeFinish))
+	writer.Write(util.Int2Byte(base.TypeFinish))
 }
 
 // 从服务器下载文件
-func DownloadFile(cfg *Cfg) {
+func DownloadFile(cfg *base.Cfg) {
 	if len(cfg.ServerFileName) <= 0 {
 		util.Log("please specify file name")
 		return
@@ -144,7 +145,7 @@ func DownloadFile(cfg *Cfg) {
 
 	writer := bufio.NewWriter(tcpConn)
 	sendAuth(cfg, writer)
-	writer.Write(util.Int2Byte(TypeFetch))
+	writer.Write(util.Int2Byte(base.TypeFetch))
 	fileName, err := util.AesEncryptString(cfg.ServerFileName, cfg.FileEncryptPwd)
 	if nil != err {
 		util.Log("file name encrypt fail")
@@ -159,7 +160,7 @@ func DownloadFile(cfg *Cfg) {
 
 	// 开始准备接收数据
 	reader := bufio.NewReader(tcpConn)
-	funcLen := len(util.Int2Byte(TypeFetch))
+	funcLen := len(util.Int2Byte(base.TypeFetch))
 	resultBytes := make([]byte, funcLen)
 
 	readed, err := reader.Read(resultBytes)
@@ -169,10 +170,10 @@ func DownloadFile(cfg *Cfg) {
 
 	resultCode := util.Byte2Int(resultBytes)
 	switch resultCode {
-	case RESULT_FAIL:
+	case base.RESULT_FAIL:
 		readFailInfo(reader)
-	case RESULT_SUCCESS:
-	case TypeSend:
+	case base.RESULT_SUCCESS:
+	case base.TypeSend:
 		readFile(reader, cfg)
 	}
 }
@@ -186,8 +187,8 @@ func readFailInfo(reader *bufio.Reader) {
 }
 
 // 开始读取文件
-func readFile(reader *bufio.Reader, cfg *Cfg) {
-	intLen := len(util.Int2Byte(TypeFetch))
+func readFile(reader *bufio.Reader, cfg *base.Cfg) {
+	intLen := len(util.Int2Byte(base.TypeFetch))
 	intBytes := make([]byte, intLen)
 
 	file, err := os.Create(cfg.ServerFileName)

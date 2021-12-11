@@ -1,14 +1,13 @@
-package biz
+package base
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"strings"
 	"sync"
-
-	"neolong.me/file_transfer/util"
 )
 
 const TypeSend int = 233
@@ -47,6 +46,7 @@ type Cfg struct {
 	ServerFileName string // 需要下载的服务器上的文件名
 	FileEncryptPwd string // 文件加密的密钥
 	BuckSize       int    // 文件传输块大小
+	LogLevel       int    // 日志级别
 }
 
 func (cfg BaseCfg) toString() string {
@@ -69,19 +69,19 @@ func GetCfg() Cfg {
 	}
 	file, err := os.Open(cfgPath)
 	if nil != err {
-		util.Log("config file open error: " + err.Error())
+		fmt.Println("config file open error: " + err.Error())
 		os.Exit(1)
 	}
 	defer file.Close()
 
 	data, err := ioutil.ReadAll(file)
 	if nil != err {
-		util.Log("config file read error")
+		fmt.Println("config file read error")
 		os.Exit(1)
 	}
 	e := json.Unmarshal(data, &config)
 	if nil != e {
-		util.Log("config file parse error")
+		fmt.Println("config file parse error")
 		os.Exit(1)
 	}
 	inited = true

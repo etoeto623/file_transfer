@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"github.com/go-basic/uuid"
+	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/util"
 )
 
-func DoServe(cfg *Cfg) {
-	util.Log("start to bootstrap server")
+func DoServe(cfg *base.Cfg) {
+	util.Log("start to bootstrap server at port " + strconv.Itoa(cfg.Port))
 	tcpAddr, e := net.ResolveTCPAddr("tcp", ":"+strconv.Itoa(cfg.Port))
 	if e != nil {
 		util.NoticeAndExit("server start error:" + e.Error())
@@ -39,14 +40,14 @@ func DoServe(cfg *Cfg) {
 	}
 }
 
-func handleTCP(conn *net.TCPConn, cfg *Cfg) {
+func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 	uuidStr := uuid.New()
 	ip := conn.RemoteAddr().(*net.TCPAddr).IP.String()
 	util.Log(uuidStr + " got request from " + ip)
 	defer conn.Close()
 	reader := bufio.NewReader(conn)
 
-	intLen := len(util.Int2Byte(TypeSend))
+	intLen := len(util.Int2Byte(base.TypeSend))
 	funcBytes := make([]byte, intLen)
 	// 读取鉴权信息
 	readed, err := reader.Read(funcBytes)
@@ -85,11 +86,11 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg) {
 	// 读取客户端的请求功能
 	funcCode := util.Byte2Int(funcBytes)
 	switch funcCode {
-	case TypeSend:
+	case base.TypeSend:
 		receiveFile(reader, &funcBytes, cfg)
-	case TypeList:
+	case base.TypeList:
 		listFile(conn, &funcBytes, cfg)
-	case TypeFetch:
+	case base.TypeFetch:
 		downloadFile(reader, conn, &funcBytes, cfg)
 	default:
 		util.Log(uuidStr + " function code illegal")
@@ -97,7 +98,7 @@ func handleTCP(conn *net.TCPConn, cfg *Cfg) {
 }
 
 /** 接收文件，分块进行 */
-func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
+func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 	// 读取文件名
 	readed, err := reader.Read(*funcBytes)
 	if nil != err || len(*funcBytes) != readed {
@@ -117,7 +118,7 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
 	defer file.Close()
 
 	// 读取文件流
-	intLen := len(util.Int2Byte(TypeSend))
+	intLen := len(util.Int2Byte(base.TypeSend))
 	intBuf := make([]byte, intLen)
 
 	for {
@@ -129,10 +130,10 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *Cfg) {
 		funcCode := util.Byte2Int(intBuf)
 
 		switch funcCode {
-		case TypeFinish:
+		case base.TypeFinish:
 			util.Log("file receive finish")
 			return
-		case TypeFileBuck:
+		case base.TypeFileBuck:
 			_, err = reader.Read(intBuf) // 读取文件分块的大小
 			if nil != err {
 				util.Log("file bucket size read error: " + err.Error())
@@ -173,13 +174,13 @@ func deleteFile(f *os.File) {
 }
 
 // 下载文件，需要进行分块下载
-func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
+func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *base.Cfg) {
 	writer := bufio.NewWriter(conn)
 	readed, err := reader.Read(*funcBytes)
 
 	// 发生错误
 	if nil != err || len(*funcBytes) != readed {
-		writeMsg(writer, RESULT_FAIL, FAIL_COMMON)
+		writeMsg(writer, base.RESULT_FAIL, base.FAIL_COMMON)
 		return
 	}
 
@@ -188,23 +189,23 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *C
 	fileNameBytes := make([]byte, fileNameLen)
 	readed, err = reader.Read(fileNameBytes)
 	if nil != err || fileNameLen != readed { // 读取文件失败
-		writeMsg(writer, RESULT_FAIL, FAIL_COMMON)
+		writeMsg(writer, base.RESULT_FAIL, base.FAIL_COMMON)
 		return
 	}
 
-	intLen := len(util.Int2Byte(TypeSend))
+	intLen := len(util.Int2Byte(base.TypeSend))
 	fileName := string(fileNameBytes)
 
 	// 开始分块读取文件
 	file, err := os.Open(cfg.Warehouse + fileName)
 	if nil != err {
 		util.Log("target file [" + fileName + "] read error: " + err.Error())
-		writeMsg(writer, RESULT_FAIL, err.Error())
+		writeMsg(writer, base.RESULT_FAIL, err.Error())
 		return
 	}
 
 	intBytes := make([]byte, intLen)
-	writer.Write(util.Int2Byte(TypeSend)) // 文件开始传输的标志
+	writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
 	for {
 		n, err := file.Read(intBytes)
 		if nil != err {
@@ -236,16 +237,6 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *C
 		writer.Flush()
 	}
 
-	// fileBytes, err := ioutil.ReadFile(cfg.Warehouse + fileName)
-	// if nil != err {
-	// 	errMsg := err.Error()
-	// 	writeMsg(writer, RESULT_FAIL, errMsg)
-	// 	return
-	// }
-
-	// writer.Write(util.Int2Byte(RESULT_SUCCESS))
-	// writer.Write(util.Int2Byte(len(fileBytes)))
-	// writer.Write(fileBytes)
 	writer.Flush()
 }
 
@@ -257,7 +248,7 @@ func writeMsg(writer *bufio.Writer, code int, msg string) {
 }
 
 // 列出文件列表
-func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *Cfg) {
+func listFile(conn *net.TCPConn, funcBytes *[]byte, cfg *base.Cfg) {
 	writer := bufio.NewWriter(conn)
 	br := []byte("\n")
 	filepath.Walk(cfg.Warehouse, func(fPath string, info fs.FileInfo, err error) error {

@@ -4,5 +4,6 @@
 	"serverAddress": "localhost:8888",
 	"warehouse": "/Users/neo/ftwarehouse/",
 	"fileEncryptPwd": "pwd",
-	"buckSize": 102400
+	"buckSize": 102400,
+	"logLevel": 2
 }

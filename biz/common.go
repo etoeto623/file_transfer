@@ -1,7 +1,11 @@
 package biz
 
-import "bufio"
+import (
+	"bufio"
+
+	"neolong.me/file_transfer/base"
+)
 
 type Transfer interface {
-	Send(cfg *Cfg, writer *bufio.Writer)
+	Send(cfg *base.Cfg, writer *bufio.Writer)
 }

@@ -44,3 +44,12 @@ SHA256(timestamp) + len(fileName) + file_name + file_stream
     "fileEncryptPwd": "文件加密密码"
 }
 ```
+# docker编译
+编译时需要指定运行的系统信息，如下：
+``` shell
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ft.go
+```
+然后构建docker
+``` shell
+docker build -t ftalp:v1 .
+```

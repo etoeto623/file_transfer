@@ -20,6 +20,10 @@ const (
 	OFF
 )
 
+func Msg(msg ...interface{}) {
+	fmt.Println(msg...)
+}
+
 func log(msg string, level int) {
 	realLevel := base.GetCfg().LogLevel
 	if realLevel > level {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"neolong.me/neotools/cipher"
 	"net"
 	"os"
 	"path"
@@ -27,7 +28,7 @@ func conn(cfg *base.Cfg) *net.TCPConn {
 	return tcpConn
 }
 func sendAuth(cfg *base.Cfg, writer *bufio.Writer) {
-	authData, err := util.RsaEncrypt(util.Int2Byte(int(time.Now().Unix())), cfg.RsaEncKey)
+	authData, err := cipher.RsaEncrypt(util.Int2Byte(int(time.Now().Unix())), cfg.RsaEncKey)
 	if nil != err {
 		util.NoticeAndExit("auth encrypt error: " + err.Error())
 	}

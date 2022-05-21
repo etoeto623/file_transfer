@@ -7,6 +7,7 @@ import (
 	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/biz"
 	"neolong.me/file_transfer/util"
+	"neolong.me/neotools/cipher"
 )
 
 func send(cfg *base.Cfg) {
@@ -72,7 +73,7 @@ func main() {
 	case "genkey":
 		prepareCall(func(cfg *base.Cfg) {
 		}, func(cfg *base.Cfg) {
-			util.GenRsaKey(1024)
+			cipher.GenRsaKey(1024)
 		})
 	case "delete":
 		prepareCall(func(cfg *base.Cfg) {

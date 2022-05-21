@@ -2,6 +2,7 @@ package util
 
 import (
 	"os"
+	"neolong.me/neotools/cipher"
 )
 
 /*
@@ -16,9 +17,9 @@ func EncryptFile(path, password string) ([]byte, error) {
 		os.Exit(1)
 	}
 
-	return RsaEncrypt(data, password)
+	return cipher.RsaEncrypt(data, password)
 }
 
 func DecryptBytes(encrypted []byte, password string)([]byte, error) {
-	return RsaDecrypt(encrypted, password)
+	return cipher.RsaDecrypt(encrypted, password)
 }

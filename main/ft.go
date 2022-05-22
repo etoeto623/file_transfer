@@ -2,12 +2,12 @@ package main
 
 import (
 	"flag"
+	"neolong.me/neotools/cipher"
 	"os"
 
 	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/biz"
 	"neolong.me/file_transfer/util"
-	"neolong.me/neotools/cipher"
 )
 
 func send(cfg *base.Cfg) {

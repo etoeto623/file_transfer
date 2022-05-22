@@ -16,6 +16,7 @@ import (
 	"github.com/go-basic/uuid"
 	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/util"
+	"neolong.me/neotools/cipher"
 )
 
 func DoServe(cfg *base.Cfg) {
@@ -66,7 +67,7 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 		util.Log(uuidStr + " auth data illegal")
 		return
 	}
-	authData, err := util.RsaDecrypt(authBytes, cfg.RsaDecKey)
+	authData, err := cipher.RsaDecrypt(authBytes, cfg.RsaDecKey)
 	if nil != err {
 		util.Log(uuidStr + " auth data verify fail")
 		return

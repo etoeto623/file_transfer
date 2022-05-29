@@ -16,7 +16,7 @@ ft list
 ```
 ## 服务器启动
 ```shell script
-ft serve [-p=8888]
+ft serve [-port=8888]
 ```
 # 安全定义
 为了保证数据的安全性，文件上传时对数据流进行加密，**文件在服务器端也加密保存**，下载到本地的同时进行解密  
@@ -56,3 +56,6 @@ docker build -t ftalp:v1 .
 # 数据格式定义
 ## 文件send
 authLen + rsa(timestamp) + enc(type) + fileNameLen + aes(fileName) + buckets(typeBucket + fileBucketLen + fileBucket) + typeFinLen + typeFin
+
+# 代办
+- 增加校验，防止非法请求发送的不合理数据使server端宕机

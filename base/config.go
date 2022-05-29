@@ -85,6 +85,10 @@ func GetCfg() Cfg {
 		fmt.Println("config file parse error")
 		os.Exit(1)
 	}
+	// 处理warehouse的路径
+	if len(config.Warehouse) > 0 && !strings.HasSuffix(config.Warehouse, "/") {
+		config.Warehouse += "/"
+	}
 	inited = true
 	return config
 }

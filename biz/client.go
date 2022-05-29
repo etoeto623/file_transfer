@@ -110,12 +110,14 @@ func UploadFile(cfg *base.Cfg) {
 		util.NoticeAndExit("file read error: " + err.Error())
 	}
 	defer f.Close()
+	//fileInfo, _ := f.Stat()
+	//fileSize := fileInfo.Size()
 	buf := make([]byte, cfg.BuckSize)
 	writeCount := 0
 	for {
 		n, err := io.ReadFull(f, buf)
-		if nil != err && err != io.EOF {
-			util.Log("file bucket read error: " + err.Error())
+		if nil != err && err != io.EOF && err != io.ErrUnexpectedEOF {
+			util.Log("file bucket read error 1: " + err.Error())
 			sendFinishSignal(writer)
 			return
 		}
@@ -123,8 +125,12 @@ func UploadFile(cfg *base.Cfg) {
 			sendFinishSignal(writer)
 			break
 		}
-
-		enced, err := util.AesEncrypt(buf[0:n], cfg.FileEncryptPwd)
+		var enced []byte
+		if n < cfg.BuckSize {
+			enced, err = util.AesEncrypt(buf[0:n], cfg.FileEncryptPwd)
+		}else {
+			enced, err = util.AesEncrypt(buf, cfg.FileEncryptPwd)
+		}
 		if nil != err {
 			util.Log("file bucket encrypt error: " + err.Error())
 			sendFinishSignal(writer)
@@ -205,7 +211,6 @@ func DownloadFile(cfg *base.Cfg) {
 	funcLen := len(util.Int2Byte(base.TypeFetch))
 	resultBytes := make([]byte, funcLen)
 
-	// TODO 这里要分段接受数据
 	readed, err := io.ReadFull(reader, resultBytes)
 	if nil != err || len(resultBytes) != readed {
 		return
@@ -265,7 +270,7 @@ func readFile(reader *bufio.Reader, cfg *base.Cfg) {
 			break
 		}
 		if typeInfo != base.TypeSend {
-			util.Log("Illegal data transfer format")
+			util.Log("Illegal data transfer format: " + strconv.Itoa(typeInfo))
 			removeFile(file)
 			return
 		}
@@ -284,8 +289,10 @@ func readFile(reader *bufio.Reader, cfg *base.Cfg) {
 		bucketBytes := make([]byte, bucketSize)
 		n, err = io.ReadFull(reader, bucketBytes)
 		if nil != err {
-			util.Log("file bucket read error: " + err.Error())
-			removeFile(file)
+			if err != io.EOF {
+				util.Log("file bucket read error 3: " + err.Error())
+				removeFile(file)
+			}
 			return
 		}
 		if n < bucketSize {

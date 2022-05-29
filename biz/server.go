@@ -58,9 +58,11 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 		return
 	}
 	funcLen := util.Byte2Int(funcBytes)
-	if funcLen <= 0 { // illegal request
+	if funcLen <= 0 || funcLen > 2000 { // illegal request
+		util.Log(uuidStr + " illegal auth length: " + strconv.Itoa(funcLen))
 		return
 	}
+
 	authBytes := make([]byte, funcLen)
 	readed, err = reader.Read(authBytes)
 	if nil != err || len(authBytes) != readed {
@@ -150,7 +152,10 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 			bucketBuf := make([]byte, bucketSize)
 			n, err := io.ReadFull(reader, bucketBuf) // 这里要使用ReadFull，否则可能读取不完全
 			if nil != err {
-				util.Log("file bucket read error: " + err.Error())
+				if err == io.EOF {
+					return
+				}
+				util.Log("file bucket read error 2: " + err.Error())
 				deleteFile(file)
 				return
 			}
@@ -235,14 +240,18 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 		writeMsg(writer, base.RESULT_FAIL, err.Error())
 		return
 	}
+	fs, _ := file.Stat()
+	fileSize := fs.Size()
 
 	intBytes := make([]byte, intLen)
-	//writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
-	//writer.Flush()
+	writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
+	writer.Flush()
+	sendTotal := 0
 	for {
 		n, err := io.ReadFull(file, intBytes)
 		if nil != err {
 			if err != io.EOF {
+				util.Log("send file read bucket size error: " + err.Error())
 				// writeMsg(writer, RESULT_FAIL, err.Error())
 				return
 			}
@@ -257,11 +266,13 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 		bucketSize := util.Byte2Int(intBytes)
 		bucketBuf := make([]byte, bucketSize)
 		n, err = io.ReadFull(file, bucketBuf)
-		if nil != err {
+		if nil != err && err != io.EOF{
+			util.Log("send file read bucket data error: " + err.Error())
 			// writeMsg(writer, RESULT_FAIL, err.Error())
 			return
 		}
 		if n < bucketSize {
+			util.Log("send file read bucket not complete, expect: " + strconv.Itoa(bucketSize) + ", actual: " + strconv.Itoa(n))
 			// writeMsg(writer, RESULT_FAIL, "file bucket read uncomplete")
 			return
 		}
@@ -269,6 +280,8 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 		writer.Write(intBytes)
 		writer.Write(bucketBuf)
 		writer.Flush()
+		sendTotal += n
+		util.Log("send file bucket: " + strconv.Itoa(sendTotal) + "/" + strconv.Itoa(int(fileSize)))
 	}
 
 	// 发送结束信号

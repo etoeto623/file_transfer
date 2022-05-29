@@ -29,7 +29,7 @@ func prepareCall(paramFunc, worker func(cfg *base.Cfg)) {
 func main() {
 	//configPath := flag.String("c", "", "配置文件路径")
 	filePasswd := flag.String("pwd", "", "传输文件的加密密钥")
-	serverPort := flag.Int("port", 8888, "服务器的端口")
+	serverPort := flag.Int("port", 8090, "服务器的端口")
 	//serverAddress := flag.String("s", "", "服务器的地址，包含端口号")
 	//fileName := flag.String("n", "", "传输文件的文件名")
 	flag.Parse()

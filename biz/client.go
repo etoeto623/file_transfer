@@ -79,6 +79,7 @@ func UploadFile(cfg *base.Cfg) {
 	if !strings.HasPrefix(cfg.ToSendFilePath, "/") &&
 		!strings.HasPrefix(cfg.ToSendFilePath, "~/") &&
 		!strings.HasPrefix(cfg.ToSendFilePath, "./") {
+		// 默认发送当前路径下的文件
 		cfg.ToSendFilePath = "./" + cfg.ToSendFilePath
 	}
 
@@ -91,6 +92,7 @@ func UploadFile(cfg *base.Cfg) {
 	sendAuth(cfg, writer)
 	// 发送功能代码
 	writer.Write(util.Int2Byte(base.TypeSend))
+	writer.Flush()
 	// 发送文件名数据
 	encFileName, err := util.AesEncryptString(path.Base(cfg.ToSendFilePath), cfg.FileEncryptPwd)
 	if nil != err {
@@ -100,6 +102,7 @@ func UploadFile(cfg *base.Cfg) {
 	nameLen := len(fileNameBytes)
 	writer.Write(util.Int2Byte(nameLen))
 	writer.Write(fileNameBytes)
+	writer.Flush()
 
 	// TODO 这里要进行文件分块读取
 	f, err := os.Open(cfg.ToSendFilePath)
@@ -110,7 +113,7 @@ func UploadFile(cfg *base.Cfg) {
 	buf := make([]byte, cfg.BuckSize)
 	writeCount := 0
 	for {
-		n, err := f.Read(buf)
+		n, err := io.ReadFull(f, buf)
 		if nil != err && err != io.EOF {
 			util.Log("file bucket read error: " + err.Error())
 			sendFinishSignal(writer)
@@ -159,7 +162,7 @@ func ListFile(cfg *base.Cfg) {
 			if nil != e {
 				util.NoticeAndExit("file name decrypt error when list: " + e.Error())
 			}
-			fmt.Println(string(fileName))
+			fmt.Println(fileName)
 		}
 		if nil != err || len(data) <= 0 {
 			return
@@ -169,6 +172,7 @@ func ListFile(cfg *base.Cfg) {
 
 func sendFinishSignal(writer *bufio.Writer) {
 	writer.Write(util.Int2Byte(base.TypeFinish))
+	writer.Flush()
 }
 
 // 从服务器下载文件
@@ -183,6 +187,7 @@ func DownloadFile(cfg *base.Cfg) {
 	writer := bufio.NewWriter(tcpConn)
 	sendAuth(cfg, writer)
 	writer.Write(util.Int2Byte(base.TypeFetch))
+	writer.Flush()
 	fileName, err := util.AesEncryptString(cfg.ServerFileName, cfg.FileEncryptPwd)
 	if nil != err {
 		util.Log("file name encrypt fail")
@@ -200,7 +205,8 @@ func DownloadFile(cfg *base.Cfg) {
 	funcLen := len(util.Int2Byte(base.TypeFetch))
 	resultBytes := make([]byte, funcLen)
 
-	readed, err := reader.Read(resultBytes)
+	// TODO 这里要分段接受数据
+	readed, err := io.ReadFull(reader, resultBytes)
 	if nil != err || len(resultBytes) != readed {
 		return
 	}
@@ -244,6 +250,27 @@ func readFile(reader *bufio.Reader, cfg *base.Cfg) {
 			removeFile(file)
 			return
 		}
+		if n < intLen {
+			if n <= 0 {
+				return
+			}
+			util.Log("data receive uncomplete")
+			removeFile(file)
+			return
+		}
+
+		typeInfo := util.Byte2Int(intBytes)
+		if typeInfo == base.TypeFinish {
+			// 文件接收完成
+			break
+		}
+		if typeInfo != base.TypeSend {
+			util.Log("Illegal data transfer format")
+			removeFile(file)
+			return
+		}
+
+		n, err = io.ReadFull(reader, intBytes)
 		if n < intLen {
 			if n <= 0 {
 				return

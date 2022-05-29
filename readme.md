@@ -19,7 +19,7 @@ ft list
 ft serve [-p=8888]
 ```
 # 安全定义
-为了保证数据的安全性，文件上传时对数据流进行加密，文件在服务器端也加密保存，下载到本地的同时进行解密  
+为了保证数据的安全性，文件上传时对数据流进行加密，**文件在服务器端也加密保存**，下载到本地的同时进行解密  
 当然也可以不加密存储，只要在send时不指定密码即可
 ## 客户端认证
 服务器端给客户端分配一个RSA的加密密钥，客户端每次向服务器端发送数据时，先发送一段用RSA加密的时间戳信息，客户端接收到加密信息后，进行数据解密，并验证时间戳和本地时间的偏差是否在5s以内  
@@ -53,3 +53,6 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build ft.go
 ``` shell
 docker build -t ftalp:v1 .
 ```
+# 数据格式定义
+## 文件send
+authLen + rsa(timestamp) + enc(type) + fileNameLen + aes(fileName) + buckets(typeBucket + fileBucketLen + fileBucket) + typeFinLen + typeFin

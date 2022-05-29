@@ -43,7 +43,7 @@ func DoServe(cfg *base.Cfg) {
 }
 
 func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
-	uuidStr := uuid.New()
+	uuidStr := uuid.New() // requestId
 	ip := conn.RemoteAddr().(*net.TCPAddr).IP.String()
 	util.Log(uuidStr + " got request from " + ip)
 	defer conn.Close()
@@ -104,13 +104,13 @@ func handleTCP(conn *net.TCPConn, cfg *base.Cfg) {
 /** 接收文件，分块进行 */
 func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 	// 读取文件名
-	readed, err := reader.Read(*funcBytes)
+	readed, err := io.ReadFull(reader, *funcBytes)
 	if nil != err || len(*funcBytes) != readed {
 		return
 	}
 	fileNameLen := util.Byte2Int(*funcBytes)
 	fileNameBytes := make([]byte, fileNameLen)
-	readed, err = reader.Read(fileNameBytes)
+	readed, err = io.ReadFull(reader,fileNameBytes)
 	if nil != err || len(fileNameBytes) != readed {
 		return
 	}
@@ -126,7 +126,7 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 	intBuf := make([]byte, intLen)
 
 	for {
-		_, err = reader.Read(intBuf)
+		_, err = io.ReadFull(reader,intBuf)
 		if nil != err {
 			util.Log("function code read error: " + err.Error())
 			return
@@ -138,7 +138,7 @@ func receiveFile(reader io.Reader, funcBytes *[]byte, cfg *base.Cfg) {
 			util.Log("file receive finish")
 			return
 		case base.TypeFileBuck:
-			_, err = reader.Read(intBuf) // 读取文件分块的大小
+			_, err = io.ReadFull(reader,intBuf) // 读取文件分块的大小
 			if nil != err {
 				util.Log("file bucket size read error: " + err.Error())
 				deleteFile(file)
@@ -208,7 +208,7 @@ func commandDeleteFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, c
 // 下载文件，需要进行分块下载
 func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *base.Cfg) {
 	writer := bufio.NewWriter(conn)
-	readed, err := reader.Read(*funcBytes)
+	readed, err := io.ReadFull(reader, *funcBytes)
 
 	// 发生错误
 	if nil != err || len(*funcBytes) != readed {
@@ -219,7 +219,7 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 	// 读取需要传输的文件名
 	fileNameLen := util.Byte2Int(*funcBytes)
 	fileNameBytes := make([]byte, fileNameLen)
-	readed, err = reader.Read(fileNameBytes)
+	readed, err = io.ReadFull(reader, fileNameBytes)
 	if nil != err || fileNameLen != readed { // 读取文件失败
 		writeMsg(writer, base.RESULT_FAIL, base.FAIL_COMMON)
 		return
@@ -237,9 +237,10 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 	}
 
 	intBytes := make([]byte, intLen)
-	writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
+	//writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
+	//writer.Flush()
 	for {
-		n, err := file.Read(intBytes)
+		n, err := io.ReadFull(file, intBytes)
 		if nil != err {
 			if err != io.EOF {
 				// writeMsg(writer, RESULT_FAIL, err.Error())
@@ -264,11 +265,14 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 			// writeMsg(writer, RESULT_FAIL, "file bucket read uncomplete")
 			return
 		}
+		writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
 		writer.Write(intBytes)
 		writer.Write(bucketBuf)
 		writer.Flush()
 	}
 
+	// 发送结束信号
+	writer.Write(util.Int2Byte(base.TypeFinish))
 	writer.Flush()
 }
 

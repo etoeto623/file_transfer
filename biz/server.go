@@ -245,6 +245,7 @@ func downloadFile(reader io.Reader, conn *net.TCPConn, funcBytes *[]byte, cfg *b
 
 	intBytes := make([]byte, intLen)
 	writer.Write(util.Int2Byte(base.TypeSend)) // 文件开始传输的标志
+	writer.Write(util.Int2Byte(int(fileSize))) // 文件大小信息
 	writer.Flush()
 	sendTotal := 0
 	for {

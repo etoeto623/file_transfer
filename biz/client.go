@@ -14,6 +14,7 @@ import (
 
 	"neolong.me/file_transfer/base"
 	"neolong.me/file_transfer/util"
+	"github.com/schollz/progressbar/v3"
 )
 
 func conn(cfg *base.Cfg) *net.TCPConn {
@@ -104,16 +105,17 @@ func UploadFile(cfg *base.Cfg) {
 	writer.Write(fileNameBytes)
 	writer.Flush()
 
-	// TODO 这里要进行文件分块读取
 	f, err := os.Open(cfg.ToSendFilePath)
 	if nil != err {
 		util.NoticeAndExit("file read error: " + err.Error())
 	}
 	defer f.Close()
-	//fileInfo, _ := f.Stat()
-	//fileSize := fileInfo.Size()
 	buf := make([]byte, cfg.BuckSize)
 	writeCount := 0
+
+	// 进度条设置
+	fs, err := f.Stat()
+	bar := newBar(fs.Size())
 	for {
 		n, err := io.ReadFull(f, buf)
 		if nil != err && err != io.EOF && err != io.ErrUnexpectedEOF {
@@ -142,11 +144,13 @@ func UploadFile(cfg *base.Cfg) {
 		writer.Write(enced)
 		writer.Flush()
 		writeCount += n
+		bar.Add(n)
 	}
+	bar.Finish()
 
 	writer.Flush()
 	tcpConn.CloseWrite()
-	util.Log("file send finish, send size: " + strconv.Itoa(writeCount))
+	//util.Log("file send finish, send size: " + strconv.Itoa(writeCount))
 }
 
 func ListFile(cfg *base.Cfg) {
@@ -239,11 +243,22 @@ func readFile(reader *bufio.Reader, cfg *base.Cfg) {
 	intLen := len(util.Int2Byte(base.TypeFetch))
 	intBytes := make([]byte, intLen)
 
+	// 读取文件大小信息
+	_, err := io.ReadFull(reader, intBytes)
+	if nil != err {
+		util.Log("file size info read error: " + err.Error())
+		return
+	}
+	fileSize := util.Byte2Int(intBytes)
+
 	file, err := os.Create(cfg.ServerFileName)
 	if nil != err {
 		return
 	}
 	defer file.Close()
+
+	// 进度条初始化
+	bar := newBar(int64(fileSize))
 
 	for {
 		n, err := io.ReadFull(reader, intBytes)
@@ -308,11 +323,20 @@ func readFile(reader *bufio.Reader, cfg *base.Cfg) {
 			return
 		}
 		file.Write(decryptBytes)
+		bar.Add( n+intLen )
 	}
+	bar.Finish()
 }
 
 func removeFile(file *os.File) {
 	if nil != file {
 		os.Remove(file.Name())
 	}
+}
+
+func newBar(max int64) *progressbar.ProgressBar{
+	return progressbar.NewOptions(int(max),
+		progressbar.OptionSetWriter(os.Stdout),
+		progressbar.OptionEnableColorCodes(true),
+		progressbar.OptionShowBytes(true))
 }
